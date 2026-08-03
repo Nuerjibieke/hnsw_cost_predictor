@@ -1,11 +1,12 @@
-# HNSW Query-Level Search-Cost Prediction
+# HNSW Query Search-Cost Prediction
 
-This repository contains the executable pipeline for the paper's main HNSW
-predictor, the PGTuner QPP baseline, and the reported result tables. The
-predictor uses 20 inputs: three HNSW settings, corpus size, and 16 query-local
-geometric features.
+This project predicts the number of HNSW distance calculations for each query.
+The model uses three HNSW settings, the document count, and 16 features computed
+from query and document vectors.
 
-## Installation
+## Install
+
+The code was tested on x86-64 Linux with Python 3.10.
 
 ```bash
 python3.10 -m venv .venv
@@ -14,72 +15,45 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-On macOS, install the OpenMP runtime required by LightGBM first:
+LightGBM needs the Linux OpenMP runtime. On Ubuntu or Debian, install
+`libgomp1` if `libgomp.so.1` is missing.
 
-```bash
-brew install libomp
-```
-
-## Project structure
-
-- `run_pipeline.py`: run the complete pipeline with one command.
-- `example/`: compact real-vector example and its final result tables.
-- `baseline/`: PGTuner QPP feature calculation and evaluation code.
-- `pipeline/00_prepare_data/`: create the compact example from locked vector exports.
-- `pipeline/01_build_indexes/`: build the 16 HNSW indexes for each pair.
-- `pipeline/02_measure_query_costs/`: collect per-query distance-computation labels.
-- `pipeline/03_extract_query_features/`: compute the 16 query-local features.
-- `pipeline/04_build_training_table/`: join labels and features into model input.
-- `pipeline/05_train_and_evaluate/`: train models and evaluate held-out data.
-- `pipeline/06_build_result_tables/`: summarize predictions into paper tables.
-- `src/hnsw_cost/`: feature formulas and LightGBM model utilities.
-- `configs/`: the HNSW grid, feature sets, vector lock, and random seed.
-- `results/`: only the result tables and figure data reported in the paper.
-- `docs/`: feature definitions and main-pipeline reproduction commands.
-
-## Main pipeline
-
-```text
-embedding vectors
-  -> 01_build_indexes
-  -> 02_measure_query_costs
-  -> 03_extract_query_features
-  -> 04_build_training_table
-  -> 05_train_and_evaluate
-  -> 06_build_result_tables
-```
-
-The PGTuner QPP baseline is run separately; see `baseline/README.md`.
-
-## Runnable example
-
-The included example uses the first 512 documents and 32 queries from the
-locked NFCorpus and SciFact exports for two embedding models. It retains the
-paper's complete 112-setting HNSW grid, 16 query features, `log(1 + ndis)`
-target, LightGBM configuration, and strict joint dataset/model holdout.
+## Run the example
 
 ```bash
 python run_pipeline.py
 ```
 
-The two final tables are written to `example/results/summary.csv` and
-`example/results/kendall.csv`. Intermediate indexes, measurements, the joined
-training table, and fold predictions are written below `example/output/`.
+The example uses 512 documents and 32 queries from each of four dataset/model
+pairs. It runs all 112 HNSW settings and writes:
 
-The example demonstrates that every stage is executable on real paper vectors.
-Its values are not the paper's reported accuracy values because it uses only a
-small prefix of each vector collection. The reported full-workload tables remain
-under `results/`. The included example tables were generated on x86-64 Linux;
-small numerical differences can occur on other processor architectures.
+- `example/results/summary.csv`
+- `example/results/kendall.csv`
 
-To rebuild the compact input from the locked full exports:
+Intermediate files are written under `example/output/`. The example is smaller
+than the paper experiment, so its accuracy values are different. The paper
+tables are under `results/`. The included tables were produced on x86-64 Linux.
+Different CPU or math-library versions may give small floating-point differences.
 
-```bash
-python pipeline/00_prepare_data/prepare_example_data.py \
-  --source-root /path/to/full/vector/root
+## Pipeline
+
+```text
+vectors
+  -> build HNSW indexes
+  -> measure distance calculations
+  -> compute query features
+  -> build the training table
+  -> train and test
+  -> write result tables
 ```
 
-To run the same pipeline on all 77 locked pairs:
+- `pipeline/`: code for these six steps.
+- `src/hnsw_cost/`: shared feature and model code.
+- `baseline/`: PGTuner QPP baseline.
+- `configs/`: HNSW settings, feature lists, vector list, and seed.
+- `docs/`: feature definitions.
+
+## Run all 77 dataset/model pairs
 
 ```bash
 python run_pipeline.py \
@@ -89,17 +63,17 @@ python run_pipeline.py \
   --results-root artifacts/full_run/results
 ```
 
-The HNSW grid is
-`M={8,16,32,48}` × `efConstruction={40,80,160,320}` ×
-`efSearch={8,16,32,64,128,256,512}`. Index construction and search use one
-FAISS OpenMP thread. Each query is searched separately; the HNSW statistics are
-reset immediately before that query, and `faiss.cvar.hnsw_stats.ndis` is the
-prediction target.
+The 112 settings are:
 
-For a held dataset `d` and held embedding model `m`, training rows satisfy
-`dataset != d AND model_slug != m`; the test rows are exactly `(d, m)`. Feature
-imputation is fitted on the training partition only. The measured target and
-dataset/model/query identifiers are never used as predictor inputs.
+- `M`: 8, 16, 32, 48
+- `efConstruction`: 40, 80, 160, 320
+- `efSearch`: 8, 16, 32, 64, 128, 256, 512
 
-See `docs/REPRODUCIBILITY.md` for commands and
-`docs/FEATURE_DEFINITIONS.md` for the feature formulas.
+FAISS index building and search use one thread. HNSW counters are reset before
+every query. The target is `faiss.cvar.hnsw_stats.ndis`.
+
+For each test pair, training excludes rows with the same dataset and rows with
+the same embedding model. Missing values are filled with medians from training
+rows only. Search cost, dataset name, model name, and query ID are not inputs.
+
+See `docs/FEATURE_DEFINITIONS.md` for the model inputs.

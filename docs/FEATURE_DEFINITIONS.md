@@ -1,45 +1,53 @@
-# Final feature definitions
+statistics are computed from training rows only.
+# Model inputs
 
-All query-local features use cosine distance `d(q,x)=1-q·x` after L2
-normalization.  Original distances determine ordering; `epsilon=1e-8` is used
-only inside logarithms, denominators, reciprocals, and doubled-radius
-thresholds.  Exact distance ties are broken by corpus offset.  The final model
-does not use graph topology, HNSW traces, measured recall, hops, or cost.
+The model uses 20 inputs: four HNSW/corpus values and 16 query features. Vectors
+are L2-normalized, and cosine distance is `d(q,x)=1-q·x`. Original distances set
+the neighbor order. `epsilon=1e-8` only prevents division by zero and
+`log(0)`. Corpus row number breaks exact distance ties.
 
-## Four global-context inputs
+The inputs do not include measured cost, recall, HNSW hops, graph edges, or
+search traces.
 
-`hnsw_ef_construction`, `hnsw_M`, `ef_search`, and `num_docs`.
+## HNSW and corpus
 
-## Eleven distance-growth inputs
+- `hnsw_ef_construction`: index `efConstruction`.
+- `hnsw_M`: index `M`.
+- `ef_search`: query `efSearch`.
+- `num_docs`: document count.
 
-- `lid20`: MLE LID using ranks 1–19 and rank 20 as the boundary.
-- `adapt_lid_p005`, `adapt_lid_p01`, `adapt_lid_p02`, `adapt_lid_p05`: MLE LID
-  at `k_p=min(N,max(20,ceil(pN)))`.
+## Distance growth
+
+- `lid20`: LID from the nearest 20 documents.
+- `adapt_lid_p005`, `adapt_lid_p01`, `adapt_lid_p02`, `adapt_lid_p05`: LID at
+  rank `min(N,max(20,ceil(pN)))`.
 - `adapt_lid_profile_mean`, `adapt_lid_profile_max`,
-  `adapt_lid_profile_slope`: summaries over the ordered profile
-  `p=(0.001,0.002,0.005,0.01,0.02,0.05)`.
+  `adapt_lid_profile_slope`: mean, maximum, and slope of LID at
+  `p={0.001,0.002,0.005,0.01,0.02,0.05}`.
 - `adapt_local_expansion_ratio_2r_p002`,
-  `adapt_local_expansion_ratio_2r_p01`: `C_q(2 d_(k_p))/k_p`.
-- `adapt_local_expansion_profile_mean`: mean of that ratio across all six
-  profile scales.
+  `adapt_local_expansion_ratio_2r_p01`: number of documents within twice the
+  selected neighbor distance, divided by the selected rank.
+- `adapt_local_expansion_profile_mean`: mean expansion ratio at the six `p`
+  values.
 
-The expansion statistic is explicitly rank-normalized.  Under boundary ties,
-the denominator remains the selected rank `k_p`; it is not the exact count
-`C_q(d_(k_p))`.  It must therefore not be described as the classical exact
-ball-growth ratio.
+The expansion denominator remains the selected rank when boundary distances
+are tied.
 
-## Two distance-separation inputs
+## Distance separation
 
-- `rc10`: corpus-wide mean distance divided by the 10th-nearest distance.
-- `dsp10`: mean distance among the nearest 10, multiplied by the sum of inverse
-  distances outside the nearest 10 and normalized by `N`.
+- `rc10`: mean distance to all documents divided by the 10th-nearest distance.
+- `dsp10`: mean distance to the nearest 10, multiplied by the sum of inverse
+  distances to all remaining documents, then divided by `num_docs`.
 
-## Three directional inputs
+## Neighbor directions
 
-`qdir_erank_k10`, `qdir_erank_k20`, and `qdir_erank_k40` are entropy effective
-ranks of the Gram matrix formed from normalized query-to-neighbor displacement
-vectors.  They are bounded by 1 and K when the displacement energy is nonzero.
+- `qdir_erank_k10`
+- `qdir_erank_k20`
+- `qdir_erank_k40`
 
-The query-local feature names and ordering are defined by `QUERY_FEATURES` in
-`src/hnsw_cost/features.py`.  Each estimator uses the feature order listed for
-its variant in `configs/ablation_plan.json`.
+For each `k`, query-to-neighbor vectors are scaled to length one. The feature is
+the entropy effective rank of their Gram matrix. It is between 1 and `k` when
+the vectors have nonzero length.
+
+Feature order is defined in `src/hnsw_cost/features.py`. Feature sets are listed
+in `configs/ablation_plan.json`.
