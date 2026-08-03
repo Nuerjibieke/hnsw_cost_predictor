@@ -159,19 +159,12 @@ def partition_positions(num_docs: int) -> list[int]:
     return sorted({max(0, min(num_docs - 1, rank - 1)) for rank in ranks})
 
 
-def deterministic_topk(distances: np.ndarray, k: int = TOP_K) -> np.ndarray:
-    """Select nearest vectors with corpus offsets breaking exact ties."""
-    thresholds = np.partition(distances, kth=k - 1, axis=1)[:, k - 1]
-    selected = np.empty((distances.shape[0], k), dtype=np.int64)
-    for row, row_distances in enumerate(distances):
-        strict = np.flatnonzero(row_distances < thresholds[row])
-        ties = np.flatnonzero(row_distances == thresholds[row])
-        needed = k - len(strict)
-        if needed < 0 or needed > len(ties):
-            raise RuntimeError(f"invalid tie partition for query row {row}")
-        offsets = np.concatenate([strict, ties[:needed]])
-        selected[row] = offsets[np.lexsort((offsets, row_distances[offsets]))]
-    return selected
+def topk_offsets(distances: np.ndarray, k: int = TOP_K) -> np.ndarray:
+    """Select and order nearest vectors as in the paper experiments."""
+    offsets = np.argpartition(distances, kth=k - 1, axis=1)[:, :k]
+    selected_distances = np.take_along_axis(distances, offsets, axis=1)
+    order = np.argsort(selected_distances, axis=1)
+    return np.take_along_axis(offsets, order, axis=1).astype(np.int64, copy=False)
 
 
 def cosine_distances(queries: np.ndarray, docs: np.ndarray) -> np.ndarray:
@@ -190,7 +183,7 @@ def compute_distance_features(
     ordered = np.partition(distances, kth=partition_positions(num_docs), axis=1).astype(
         np.float64, copy=False
     )
-    top_offsets = deterministic_topk(distances)
+    top_offsets = topk_offsets(distances)
     top10 = ordered[:, :10]
     d10 = np.maximum(ordered[:, 9], EPS)
     mean_distance = distances.mean(axis=1)

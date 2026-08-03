@@ -1,4 +1,3 @@
-See `docs/FEATURE_DEFINITIONS.md` for the model inputs.
 # PGTuner QPP baseline
 
 The baseline predicts one average HNSW search cost for each dataset, embedding

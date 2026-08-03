@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -42,6 +43,14 @@ def run(command: list[str], environment: dict[str, str]) -> None:
     subprocess.run(command, cwd=REPOSITORY, env=environment, check=True)
 
 
+def remove_generated_path(path: Path) -> None:
+    """Remove one file or directory created by an earlier pipeline run."""
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
 def main() -> None:
     """Execute every stage and write the two reported result tables."""
     args = parse_args()
@@ -63,6 +72,11 @@ def main() -> None:
     features = args.output_root / "query_features"
     training_table = args.output_root / "training_table.parquet"
     training = args.output_root / "joint_holdout"
+    for path in (indexes, costs, features, training, training_table):
+        remove_generated_path(path)
+    remove_generated_path(args.output_root / "training_table_summary.json")
+    remove_generated_path(args.results_root / "summary.csv")
+    remove_generated_path(args.results_root / "kendall.csv")
     args.results_root.mkdir(parents=True, exist_ok=True)
 
     run(
@@ -77,7 +91,6 @@ def main() -> None:
             str(args.lock),
             "--threads",
             str(args.faiss_threads),
-            "--skip-existing",
         ],
         environment,
     )
@@ -139,6 +152,7 @@ def main() -> None:
             "1",
             "--worker-id",
             "0",
+            "--force",
         ],
         environment,
     )

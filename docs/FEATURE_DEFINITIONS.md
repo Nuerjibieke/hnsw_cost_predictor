@@ -1,10 +1,10 @@
-statistics are computed from training rows only.
 # Model inputs
 
 The model uses 20 inputs: four HNSW/corpus values and 16 query features. Vectors
 are L2-normalized, and cosine distance is `d(q,x)=1-q·x`. Original distances set
 the neighbor order. `epsilon=1e-8` only prevents division by zero and
-`log(0)`. Corpus row number breaks exact distance ties.
+`log(0)`. Nearest neighbors use the same NumPy partial ordering as the paper
+experiments.
 
 The inputs do not include measured cost, recall, HNSW hops, graph edges, or
 search traces.

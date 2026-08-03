@@ -34,6 +34,7 @@ Intermediate files are written under `example/output/`. The example is smaller
 than the paper experiment, so its accuracy values are different. The paper
 tables are under `results/`. The included tables were produced on x86-64 Linux.
 Different CPU or math-library versions may give small floating-point differences.
+Each run removes intermediate files left by an earlier run under `--output-root`.
 
 ## Pipeline
 

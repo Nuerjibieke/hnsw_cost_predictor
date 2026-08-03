@@ -1,4 +1,3 @@
-in `configs/ablation_plan.json`.
 # Paper results
 
 This folder contains the CSV tables reported in the paper.
