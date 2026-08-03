@@ -1,0 +1,52 @@
+{
+  "pairs": [
+    {
+      "dataset": "NFCorpus",
+      "embedding_dim": 2048,
+      "manifest_entries": 2,
+      "manifest_relative_path": "embeddings/McGill-NLP__LLM2Vec-Sheared-LLaMA-mntp-supervised/a5943d406c6b016fef3f07906aac183cf1a0b47d/20260502T181610Z/manifest.jsonl",
+      "manifest_sha256": "25b8150d30ca922819655262d5a09d5c5afe40b6579bbeab79c36e74de2d4677",
+      "model_slug": "McGill-NLP__LLM2Vec-Sheared-LLaMA-mntp-supervised",
+      "num_docs": 512,
+      "num_queries": 32,
+      "revision": "a5943d406c6b016fef3f07906aac183cf1a0b47d",
+      "run_id": "20260502T181610Z"
+    },
+    {
+      "dataset": "NFCorpus",
+      "embedding_dim": 4096,
+      "manifest_entries": 2,
+      "manifest_relative_path": "embeddings/intfloat__e5-mistral-7b-instruct/07163b72af1488142a360786df853f237b1a3ca1/20260502T175803Z/manifest.jsonl",
+      "manifest_sha256": "3aed158aaad06d5433b6a0c3dd3faf09d976812da453be4946a415a93728bb2c",
+      "model_slug": "intfloat__e5-mistral-7b-instruct",
+      "num_docs": 512,
+      "num_queries": 32,
+      "revision": "07163b72af1488142a360786df853f237b1a3ca1",
+      "run_id": "20260502T175803Z"
+    },
+    {
+      "dataset": "SciFact",
+      "embedding_dim": 2048,
+      "manifest_entries": 2,
+      "manifest_relative_path": "embeddings/McGill-NLP__LLM2Vec-Sheared-LLaMA-mntp-supervised/a5943d406c6b016fef3f07906aac183cf1a0b47d/20260502T181605Z/manifest.jsonl",
+      "manifest_sha256": "16001bdf47c9693790a319a8c89d5d65bad787cedc6f779b4824b5daf6420351",
+      "model_slug": "McGill-NLP__LLM2Vec-Sheared-LLaMA-mntp-supervised",
+      "num_docs": 512,
+      "num_queries": 32,
+      "revision": "a5943d406c6b016fef3f07906aac183cf1a0b47d",
+      "run_id": "20260502T181605Z"
+    },
+    {
+      "dataset": "SciFact",
+      "embedding_dim": 4096,
+      "manifest_entries": 2,
+      "manifest_relative_path": "embeddings/intfloat__e5-mistral-7b-instruct/07163b72af1488142a360786df853f237b1a3ca1/20260502T175027Z/manifest.jsonl",
+      "manifest_sha256": "929898554359d128d479e0fa0d0f02d1efdfe3719942b9511a58409025167d96",
+      "model_slug": "intfloat__e5-mistral-7b-instruct",
+      "num_docs": 512,
+      "num_queries": 32,
+      "revision": "07163b72af1488142a360786df853f237b1a3ca1",
+      "run_id": "20260502T175027Z"
+    }
+  ]
+}

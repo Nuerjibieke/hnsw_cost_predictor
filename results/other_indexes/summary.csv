@@ -1,0 +1,5 @@
+index,feature_set,mae_log_mean,mae_log_std,p95_qerror_mean,p95_qerror_std,acc_1p2_percent_mean,acc_1p2_percent_std
+NSG,Index context only,0.1617,0.0485,1.4871,0.1429,64.72,14.54
+NSG,Index context with query-local features,0.1127,0.0301,1.333,0.0902,80.81,10.59
+Vamana,Index context only,0.1778,0.0472,1.5352,0.1584,59.98,13.62
+Vamana,Index context with query-local features,0.117,0.0315,1.3288,0.082,79.09,12.26

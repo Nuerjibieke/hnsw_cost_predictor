@@ -1,0 +1,11 @@
+metric,value
+dataset_model_pairs,77
+direct_seconds_min,61.06951404828578
+direct_seconds_max,10438.941097674891
+prediction_seconds_min,1.0784676465735636
+prediction_seconds_max,19.04183613895164
+speedup_min,40.79471965312342
+speedup_p10,75.4138275429141
+speedup_median,165.63267936606283
+speedup_p90,594.102126956694
+speedup_max,3395.2052761643663

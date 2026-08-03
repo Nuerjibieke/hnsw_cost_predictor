@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hnsw-query-cost"
+version = "1.0.0"
+description = "Query-level HNSW distance-computation prediction pipeline"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "numpy==2.2.6",
+  "pandas==2.3.3",
+  "pyarrow==23.0.1",
+  "scipy==1.15.3",
+  "scikit-learn==1.7.2",
+  "lightgbm==4.6.0",
+  "faiss-cpu==1.10.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

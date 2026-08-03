@@ -1,0 +1,40 @@
+{
+  "features": [
+    "efConstruction",
+    "M",
+    "efSearch",
+    "SIZE",
+    "q_SIZE",
+    "DIM",
+    "LID",
+    "Sum_K_MinDist",
+    "Sum_K_MaxDist",
+    "Sum_K_StdDist",
+    "q_K_MinRatio",
+    "q_K_MeanRatio",
+    "q_K_MaxRatio",
+    "q_K_StdRatio"
+  ],
+  "feature_extraction": {
+    "neighbors": 100,
+    "query_neighbors": 1000,
+    "ds_batch_size": 16,
+    "dr_batch_size": 128,
+    "lid_batch_size": 64
+  },
+  "training": {
+    "layer_sizes": [14, 128, 256, 64, 1],
+    "epochs": 3000,
+    "batch_size": 4096,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0005,
+    "scheduler_step_size": 1000,
+    "scheduler_gamma": 0.1,
+    "seed_base": 42,
+    "torch_threads_per_worker": 1,
+    "feature_head_min": [1.3010299956639813, 4, 1, 5, 2, 100],
+    "feature_head_max": [2.9030899869919438, 100, 3.6989700043360187, 8, 4, 1000],
+    "target_log10_min": 2,
+    "target_log10_max": 5.698970004336019
+  }
+}

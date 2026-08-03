@@ -1,0 +1,13 @@
+{
+  "random_seed_base": 20260618,
+  "variants": [
+    {"name": "context_only", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "num_docs"]},
+    {"name": "context_with_distance_growth", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "num_docs", "lid20", "adapt_lid_p005", "adapt_lid_p01", "adapt_lid_p02", "adapt_lid_p05", "adapt_lid_profile_mean", "adapt_lid_profile_max", "adapt_lid_profile_slope", "adapt_local_expansion_ratio_2r_p002", "adapt_local_expansion_ratio_2r_p01", "adapt_local_expansion_profile_mean"]},
+    {"name": "context_with_distance_separability", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "num_docs", "rc10", "dsp10"]},
+    {"name": "context_with_entropy_effective_rank", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "num_docs", "qdir_erank_k10", "qdir_erank_k20", "qdir_erank_k40"]},
+    {"name": "final20", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "lid20", "adapt_lid_p005", "adapt_lid_p01", "adapt_lid_p02", "adapt_lid_p05", "adapt_lid_profile_mean", "adapt_lid_profile_max", "adapt_lid_profile_slope", "adapt_local_expansion_ratio_2r_p002", "adapt_local_expansion_ratio_2r_p01", "adapt_local_expansion_profile_mean", "rc10", "dsp10", "qdir_erank_k10", "qdir_erank_k20", "qdir_erank_k40", "num_docs"]},
+    {"name": "final20_without_distance_growth", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "rc10", "dsp10", "qdir_erank_k10", "qdir_erank_k20", "qdir_erank_k40", "num_docs"]},
+    {"name": "final20_without_distance_separability", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "lid20", "adapt_lid_p005", "adapt_lid_p01", "adapt_lid_p02", "adapt_lid_p05", "adapt_lid_profile_mean", "adapt_lid_profile_max", "adapt_lid_profile_slope", "adapt_local_expansion_ratio_2r_p002", "adapt_local_expansion_ratio_2r_p01", "adapt_local_expansion_profile_mean", "qdir_erank_k10", "qdir_erank_k20", "qdir_erank_k40", "num_docs"]},
+    {"name": "final20_without_entropy_effective_rank", "features": ["hnsw_ef_construction", "hnsw_M", "ef_search", "lid20", "adapt_lid_p005", "adapt_lid_p01", "adapt_lid_p02", "adapt_lid_p05", "adapt_lid_profile_mean", "adapt_lid_profile_max", "adapt_lid_profile_slope", "adapt_local_expansion_ratio_2r_p002", "adapt_local_expansion_ratio_2r_p01", "adapt_local_expansion_profile_mean", "rc10", "dsp10", "num_docs"]}
+  ]
+}

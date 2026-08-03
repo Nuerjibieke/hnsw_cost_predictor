@@ -1,0 +1,13 @@
+{
+  "task_name": "SciFact",
+  "hf_split": "test",
+  "hf_subset": "default",
+  "prompt_type": "PromptType.document",
+  "batch_index": 0,
+  "num_vectors": 512,
+  "embedding_dim": 4096,
+  "dtype": "float16",
+  "record_count": 512,
+  "vectors_path": "SciFact/split=test/subset=default/prompt_type=PromptType.document/batch_00000.npy",
+  "records_path": "SciFact/split=test/subset=default/prompt_type=PromptType.document/batch_00000.jsonl"
+}
