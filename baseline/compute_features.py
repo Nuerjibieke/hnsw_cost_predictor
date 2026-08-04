@@ -13,9 +13,13 @@ import numpy as np
 import pandas as pd
 
 from hnsw_cost.fingerprint import fingerprint
-from hnsw_cost.vector_io import sha256_file
-from hnsw_cost.vector_io import load_jsonl, load_vectors_and_rows, resolve_path
-
+from hnsw_cost.vector_io import (
+    load_jsonl,
+    load_vectors_and_rows,
+    resolve_path,
+    sha256_file,
+    verify_entry_files,
+)
 
 FEATURE_VALUE_COLUMNS = [
     "SIZE",
@@ -76,7 +80,7 @@ def select_device(name: str) -> str:
 
 
 def vector_directories(pair: dict, vector_root: Path) -> tuple[Path, Path]:
-    """Resolve the document and query directories for one locked pair."""
+    """Resolve and verify the locked document and query files."""
     manifest = vector_root / str(pair["manifest_relative_path"])
     if not manifest.exists():
         raise FileNotFoundError(manifest)
@@ -90,6 +94,10 @@ def vector_directories(pair: dict, vector_root: Path) -> tuple[Path, Path]:
         for entry in load_jsonl(manifest)
         if str(entry.get("task_name", pair["dataset"])) == str(pair["dataset"])
     ]
+    if not entries:
+        raise RuntimeError(f"empty manifest for {pair['dataset']}/{pair['model_slug']}")
+    for entry in entries:
+        verify_entry_files(entry, manifest)
     document_dirs = {
         resolve_path(entry["vectors_path"], manifest).parent
         for entry in entries
@@ -118,8 +126,19 @@ def exact_topk_l2(
     """Return exact batched Euclidean distances to the nearest vectors."""
     import torch
 
-    if k > len(base_vectors):
-        raise ValueError(f"k={k} exceeds the base size {len(base_vectors)}")
+    if (
+        base_vectors.ndim != 2
+        or query_vectors.ndim != 2
+        or base_vectors.shape[1] != query_vectors.shape[1]
+        or not np.isfinite(base_vectors).all()
+        or not np.isfinite(query_vectors).all()
+        or batch_size <= 0
+        or k <= 0
+        or k > len(base_vectors) - int(exclude_aligned_self)
+    ):
+        raise ValueError("invalid exact-neighbor inputs")
+    if exclude_aligned_self and len(base_vectors) != len(query_vectors):
+        raise ValueError("aligned self-exclusion requires equal vector counts")
     base = torch.as_tensor(base_vectors, dtype=torch.float32, device=device)
     base_norm = (base * base).sum(dim=1).reshape(1, -1)
     parts: list[np.ndarray] = []
@@ -214,13 +233,13 @@ def global_lid(unique_documents: np.ndarray, batch_size: int, device: str) -> fl
 
 def compute_pair(
     pair: dict,
-    vector_root: Path,
+    document_dir: Path,
+    query_dir: Path,
     specification: dict,
     device: str,
     feature_fingerprint: str,
 ) -> dict:
     """Compute every PGTuner feature for one dataset/model pair."""
-    document_dir, query_dir = vector_directories(pair, vector_root)
     documents, _ = load_vectors_and_rows(document_dir)
     queries, _ = load_vectors_and_rows(query_dir)
     expected_shape = (int(pair["num_docs"]), int(pair["embedding_dim"]))
@@ -275,7 +294,9 @@ def main() -> None:
     device = select_device(args.device)
     import torch
 
-    device_name = torch.cuda.get_device_name(device) if device.startswith("cuda") else "cpu"
+    device_name = (
+        torch.cuda.get_device_name(device) if device.startswith("cuda") else "cpu"
+    )
     feature_fingerprint = fingerprint(
         {
             "config_sha256": sha256_file(args.config),
@@ -311,16 +332,15 @@ def main() -> None:
             list(existing.columns) != FEATURE_COLUMNS
             or existing.duplicated(["dataset", "model_slug"]).any()
         ):
-            raise RuntimeError(f"invalid existing feature table: {args.output}")
+            existing = pd.DataFrame(columns=FEATURE_COLUMNS)
     else:
         existing = pd.DataFrame(columns=FEATURE_COLUMNS)
     rows = existing.to_dict("records")
     for pair in pairs:
         key = (str(pair["dataset"]), str(pair["model_slug"]))
+        document_dir, query_dir = vector_directories(pair, args.vector_root)
         matches = [
-            row
-            for row in rows
-            if (str(row["dataset"]), str(row["model_slug"])) == key
+            row for row in rows if (str(row["dataset"]), str(row["model_slug"])) == key
         ]
         if matches and not args.force:
             cached = matches[0]
@@ -331,12 +351,15 @@ def main() -> None:
                 print(f"[skip] {key[0]} / {key[1]}")
                 continue
         rows = [
-            row
-            for row in rows
-            if (str(row["dataset"]), str(row["model_slug"])) != key
+            row for row in rows if (str(row["dataset"]), str(row["model_slug"])) != key
         ]
         row = compute_pair(
-            pair, args.vector_root, plan, device, feature_fingerprint
+            pair,
+            document_dir,
+            query_dir,
+            plan,
+            device,
+            feature_fingerprint,
         )
         rows.append(row)
         args.output.parent.mkdir(parents=True, exist_ok=True)

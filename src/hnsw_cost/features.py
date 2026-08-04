@@ -17,7 +17,6 @@ import pandas as pd
 
 from .vector_io import l2_normalize, load_jsonl, resolve_path, verify_entry_files
 
-
 EPS = 1e-8
 MIN_K = 20
 TOP_K = 40
@@ -77,9 +76,14 @@ def choose_manifest(
                 "PromptType.document" in kind for kind in kinds
             ):
                 complete.append(path)
+    complete = sorted({path.resolve() for path in complete})
     if not complete:
         raise FileNotFoundError(f"no complete manifest for {dataset}/{model_slug}")
-    return complete[-1]
+    if len(complete) != 1:
+        raise RuntimeError(
+            f"multiple manifests match {dataset}/{model_slug}: {len(complete)}"
+        )
+    return complete[0]
 
 
 def split_manifest(path: Path, dataset: str) -> tuple[list[dict], list[dict]]:
@@ -141,7 +145,7 @@ def pct_name(percent: float) -> str:
 
 def rank_for(num_docs: int, percent: float) -> int:
     """Convert a corpus fraction to a bounded neighbor rank."""
-    return max(MIN_K, min(num_docs, math.ceil(num_docs * percent)))
+    return min(num_docs, max(MIN_K, math.ceil(num_docs * percent)))
 
 
 def lid_mle(values: np.ndarray, radius: np.ndarray) -> np.ndarray:
@@ -167,7 +171,9 @@ def topk_offsets(distances: np.ndarray, k: int = TOP_K) -> np.ndarray:
         raise ValueError("invalid nearest-neighbor selection shape or k")
     thresholds = np.partition(distances, kth=k - 1, axis=1)[:, k - 1]
     result = np.empty((distances.shape[0], k), dtype=np.int64)
-    for row_index, (row, threshold) in enumerate(zip(distances, thresholds)):
+    for row_index, (row, threshold) in enumerate(
+        zip(distances, thresholds, strict=True)
+    ):
         strictly_closer = np.flatnonzero(row < threshold)
         tied = np.flatnonzero(row == threshold)
         needed = k - len(strictly_closer)
@@ -275,6 +281,16 @@ def compute_final_query_features(
 ) -> pd.DataFrame:
     """Compute all 16 paper features for selected queries."""
     query_offsets = np.asarray(query_offsets, dtype=np.int64)
+    if queries.ndim != 2 or docs.ndim != 2 or queries.shape[1] != docs.shape[1]:
+        raise ValueError("query and document vectors must have one common dimension")
+    if query_block_size <= 0 or not len(query_offsets):
+        raise ValueError("query offsets and block size must be positive")
+    if (
+        np.any(query_offsets < 0)
+        or np.any(query_offsets >= len(queries))
+        or len(np.unique(query_offsets)) != len(query_offsets)
+    ):
+        raise ValueError("query offsets must be unique and in range")
     top_offset_parts: list[np.ndarray] = []
     feature_parts: list[pd.DataFrame] = []
     for start in range(0, len(query_offsets), query_block_size):

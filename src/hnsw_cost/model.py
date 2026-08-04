@@ -38,8 +38,14 @@ def build_lgbm(fold_index: int, n_features: int, seed_base: int):
 
 def qerror(true_cost, pred_cost):
     """Compute multiplicative Q-error values."""
-    true_cost = np.maximum(np.asarray(true_cost, float), 1.0)
-    pred_cost = np.maximum(np.asarray(pred_cost, float), 1.0)
+    true_cost = np.asarray(true_cost, float)
+    pred_cost = np.asarray(pred_cost, float)
+    if true_cost.shape != pred_cost.shape or not (
+        np.isfinite(true_cost).all() and np.isfinite(pred_cost).all()
+    ):
+        raise ValueError("true and predicted costs must be finite and aligned")
+    true_cost = np.maximum(true_cost, 1.0)
+    pred_cost = np.maximum(pred_cost, 1.0)
     return np.maximum(true_cost / pred_cost, pred_cost / true_cost)
 
 
@@ -47,6 +53,12 @@ def metric(true_log, pred_log):
     """Compute the prediction metrics reported in the paper."""
     true_log = np.asarray(true_log, float)
     pred_log = np.asarray(pred_log, float)
+    if (
+        true_log.shape != pred_log.shape
+        or not len(true_log)
+        or not (np.isfinite(true_log).all() and np.isfinite(pred_log).all())
+    ):
+        raise ValueError("true and predicted log costs must be finite and aligned")
     true_cost = np.maximum(np.expm1(true_log), 1.0)
     pred_cost = np.maximum(np.expm1(pred_log), 1.0)
     errors = qerror(true_cost, pred_cost)

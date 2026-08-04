@@ -9,10 +9,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-from hnsw_cost.model import joint_holdout_masks, metric
 from model import train_predict
 
+from hnsw_cost.model import joint_holdout_masks, metric
 
 CONFIG_KEYS = [
     "dataset",
@@ -92,6 +91,15 @@ def build_configuration_table(
         raise RuntimeError("a dataset/model pair has no baseline feature row")
     if (grouped.num_docs != grouped.SIZE).any():
         raise RuntimeError("the baseline corpus size differs from the training table")
+    counts_per_setting = queries.groupby(
+        CONFIG_KEYS, observed=True
+    ).query_offset.nunique()
+    expected_counts = pair.set_index(["dataset", "model_slug"]).q_SIZE
+    if any(
+        int(value) != int(expected_counts.loc[index[:2]])
+        for index, value in counts_per_setting.items()
+    ):
+        raise RuntimeError("an HNSW setting has incomplete baseline query labels")
     query_counts = queries.groupby(
         ["dataset", "model_slug"], observed=True
     ).query_offset.nunique()
@@ -142,6 +150,8 @@ def main() -> None:
         predicted_cost = np.maximum(
             train_predict(train, test, features, plan["training"], fold_index), 1.0
         )
+        if not np.isfinite(predicted_cost).all():
+            raise RuntimeError(f"invalid baseline predictions in fold {fold_index}")
         config_prediction = test[CONFIG_KEYS].copy()
         config_prediction["pred_log_cost"] = np.log1p(predicted_cost)
         held_queries = queries[

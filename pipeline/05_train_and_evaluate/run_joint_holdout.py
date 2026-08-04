@@ -19,7 +19,6 @@ import pandas as pd
 
 from hnsw_cost.model import build_lgbm, joint_holdout_masks, metric
 
-
 IDENTITY_COLUMNS = [
     "dataset",
     "model_slug",
@@ -77,9 +76,16 @@ def read_training_table(path: Path, plan: dict) -> pd.DataFrame:
             feature for variant in plan["variants"] for feature in variant["features"]
         )
     )
-    return pd.read_parquet(
+    data = pd.read_parquet(
         path, columns=list(dict.fromkeys([*IDENTITY_COLUMNS, *features]))
     )
+    if not np.isfinite(
+        data[["distance_computations", "num_docs", "true_log_cost"]].to_numpy(float)
+    ).all():
+        raise RuntimeError("training labels contain non-finite values")
+    if np.isinf(data[features].to_numpy(float)).any():
+        raise RuntimeError("training features contain infinite values")
+    return data
 
 
 def run_worker(args: argparse.Namespace, plan: dict) -> None:
@@ -110,9 +116,6 @@ def run_worker(args: argparse.Namespace, plan: dict) -> None:
             base = args.output_root / variant
             metric_path = base / "fold_metrics" / f"{token}.csv"
             prediction_path = base / "fold_predictions" / f"{token}.parquet"
-            if metric_path.exists() and prediction_path.exists() and not args.force:
-                continue
-
             features = specification["features"]
             train_features = data.iloc[train_index][features]
             medians = train_features.median(numeric_only=True).fillna(0.0)
@@ -123,6 +126,8 @@ def run_worker(args: argparse.Namespace, plan: dict) -> None:
             model = build_lgbm(fold_index, len(features), int(plan["random_seed_base"]))
             model.fit(x_train, y_train)
             pred_log = np.asarray(model.predict(x_test), float)
+            if pred_log.shape != y_test.shape or not np.isfinite(pred_log).all():
+                raise RuntimeError(f"invalid predictions for fold {fold_index}")
 
             result = {
                 "variant": variant,
@@ -177,7 +182,6 @@ def main() -> None:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--num-workers", type=int, default=1)
     parser.add_argument("--worker-id", type=int, default=0)
-    parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     if args.num_workers <= 0 or not 0 <= args.worker_id < args.num_workers:
         raise SystemExit("invalid worker assignment")

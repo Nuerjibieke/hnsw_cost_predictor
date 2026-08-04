@@ -41,7 +41,6 @@ def main() -> None:
     parser.add_argument("--datasets", nargs="*")
     parser.add_argument("--models", nargs="*")
     parser.add_argument("--query-block-size", type=int, default=16)
-    parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     if args.query_block_size <= 0:
         raise SystemExit("--query-block-size must be positive")
@@ -63,14 +62,6 @@ def main() -> None:
         safe_pair = f"{dataset}__{model_slug.replace('/', '__')}"
         output = args.output_root / f"{safe_pair}.parquet"
         status_path = args.output_root / "status" / f"{safe_pair}.json"
-        if output.exists() and status_path.exists() and not args.force:
-            prior = json.loads(status_path.read_text())
-            if (
-                prior.get("status") == "pass"
-                and prior.get("manifest_sha256") == row["manifest_sha256"]
-            ):
-                statuses.append(prior)
-                continue
         queries, docs, manifest = load_embeddings(
             args.vector_root,
             dataset,
@@ -93,10 +84,6 @@ def main() -> None:
         )
         if list(frame.columns) != ["query_offset", *QUERY_FEATURES]:
             raise RuntimeError("feature schema mismatch")
-        output.parent.mkdir(parents=True, exist_ok=True)
-        temporary = output.with_suffix(output.suffix + f".tmp.{os.getpid()}")
-        frame.to_parquet(temporary, index=False, compression="zstd")
-        temporary.replace(output)
         missing = {
             name: int(np.isnan(frame[name].to_numpy(float)).sum())
             for name in QUERY_FEATURES
@@ -107,6 +94,10 @@ def main() -> None:
         }
         if any(infinite.values()):
             raise RuntimeError(f"infinite feature values for {dataset}/{model_slug}")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output.with_suffix(output.suffix + f".tmp.{os.getpid()}")
+        frame.to_parquet(temporary, index=False, compression="zstd")
+        temporary.replace(output)
         status = {
             "status": "pass",
             "dataset": dataset,

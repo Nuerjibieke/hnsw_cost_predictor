@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from hnsw_cost.vector_io import l2_normalize, load_vectors_and_rows
+from hnsw_cost.vector_io import l2_normalize, load_vectors_and_rows, sha256_file
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,7 @@ class Attempt:
     model_slug: str
     revision: str
     run_id: str
+    metric: str
     normalize: bool
     k: int
     ef_construction: int
@@ -40,6 +41,7 @@ class Attempt:
     num_queries: int
     embedding_dim: int
     manifest_sha256: str
+    index_sha256: str
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,7 +56,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", nargs="*")
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--faiss-threads", type=int, default=1)
-    parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     if args.workers <= 0 or args.faiss_threads <= 0:
         raise SystemExit("worker and thread counts must be positive")
@@ -72,7 +73,7 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def parse_attempt(summary_path: Path) -> Attempt | None:
+def parse_attempt(summary_path: Path) -> Attempt:
     """Parse one complete HNSW build summary."""
     try:
         payload = load_json(summary_path)
@@ -86,6 +87,7 @@ def parse_attempt(summary_path: Path) -> Attempt | None:
             model_slug=str(payload["model_slug"]),
             revision=str(payload["revision"]),
             run_id=str(payload["run_id"]),
+            metric=str(payload["metric"]),
             normalize=bool(payload["normalize"]),
             k=int(payload["k"]),
             ef_construction=int(payload["ef_construction"]),
@@ -94,20 +96,20 @@ def parse_attempt(summary_path: Path) -> Attempt | None:
             num_queries=int(payload["num_queries"]),
             embedding_dim=int(payload["embedding_dim"]),
             manifest_sha256=str(payload["manifest_sha256"]),
+            index_sha256=str(payload["index_sha256"]),
         )
-    except (KeyError, OSError, ValueError, json.JSONDecodeError):
-        return None
-    return (
-        attempt if attempt.index_path.exists() and attempt.query_dir.exists() else None
-    )
+    except (KeyError, OSError, ValueError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"invalid index summary: {summary_path}") from error
+    if not attempt.index_path.exists() or not attempt.query_dir.exists():
+        raise RuntimeError(f"missing index or query vectors: {summary_path}")
+    return attempt
 
 
 def discover_attempts(args: argparse.Namespace) -> list[Attempt]:
     """Discover saved indexes that pass optional task and model filters."""
     attempts = [
-        attempt
+        parse_attempt(path)
         for path in sorted((args.hnsw_root / "experiments").rglob("summary.json"))
-        if (attempt := parse_attempt(path)) is not None
     ]
     if args.tasks:
         attempts = [attempt for attempt in attempts if attempt.task_name in args.tasks]
@@ -154,7 +156,6 @@ def measure_attempt(
     output_root: str,
     ef_values: list[int],
     faiss_threads: int,
-    force: bool,
 ) -> dict[str, Any]:
     """Measure every query and efSearch value for one saved index."""
     attempt = Attempt(**attempt_data)
@@ -164,14 +165,8 @@ def measure_attempt(
     done_path = target / "_SUCCESS"
     expected_rows = attempt.num_queries * len(ef_values)
     grid_text = ",".join(map(str, ef_values))
-    if not force and curves_path.exists() and meta_path.exists() and done_path.exists():
-        prior = load_json(meta_path)
-        if (
-            prior.get("curve_rows") == expected_rows
-            and prior.get("efSearch_grid") == grid_text
-            and prior.get("manifest_sha256") == attempt.manifest_sha256
-        ):
-            return prior
+    if sha256_file(attempt.index_path) != attempt.index_sha256:
+        raise RuntimeError(f"index hash mismatch for {attempt.summary_path}")
 
     import faiss
 
@@ -186,8 +181,12 @@ def measure_attempt(
         raise RuntimeError(f"index shape mismatch for {attempt.summary_path}")
 
     target.mkdir(parents=True, exist_ok=True)
+    done_path.unlink(missing_ok=True)
+    temporary_curves = curves_path.with_suffix(
+        curves_path.suffix + f".tmp.{os.getpid()}"
+    )
     row_count = 0
-    with curves_path.open("wb") as raw_handle:
+    with temporary_curves.open("wb") as raw_handle:
         with gzip.GzipFile(
             filename="", mode="wb", fileobj=raw_handle, mtime=0
         ) as compressed_handle:
@@ -200,15 +199,18 @@ def measure_attempt(
                         )
                         faiss.cvar.hnsw_stats.reset()
                         index.search(query, attempt.k)
+                        distance_computations = int(faiss.cvar.hnsw_stats.ndis)
+                        if distance_computations <= 0:
+                            raise RuntimeError(
+                                f"invalid distance count for {attempt.summary_path}"
+                            )
                         row = {
                             "query_offset": offset,
                             "query_id": record_id(query_rows, offset),
                             "M": attempt.m_value,
                             "efConstruction": attempt.ef_construction,
                             "efSearch": ef_search,
-                            "distance_computations": int(
-                                faiss.cvar.hnsw_stats.ndis
-                            ),
+                            "distance_computations": distance_computations,
                         }
                         handle.write(
                             json.dumps(
@@ -221,6 +223,7 @@ def measure_attempt(
                         row_count += 1
     if row_count != expected_rows:
         raise RuntimeError(f"measured {row_count} rows, expected {expected_rows}")
+    temporary_curves.replace(curves_path)
     meta = {
         "task_name": attempt.task_name,
         "split": attempt.split,
@@ -235,8 +238,12 @@ def measure_attempt(
         "efSearch_grid": grid_text,
         "curve_rows": row_count,
         "manifest_sha256": attempt.manifest_sha256,
+        "index_sha256": attempt.index_sha256,
+        "curve_sha256": sha256_file(curves_path),
     }
-    meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    temporary_meta = meta_path.with_suffix(meta_path.suffix + f".tmp.{os.getpid()}")
+    temporary_meta.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    temporary_meta.replace(meta_path)
     done_path.write_text("ok\n", encoding="utf-8")
     return meta
 
@@ -249,11 +256,41 @@ def main() -> None:
     args = parse_args()
     grid = load_json(args.grid)
     ef_values = sorted({int(value) for value in grid["ef_search_values"]})
-    if not ef_values or any(value <= 0 for value in ef_values):
-        raise RuntimeError("invalid efSearch grid")
+    build_grid = {
+        (int(ef_construction), int(m_value))
+        for ef_construction in grid["ef_construction_values"]
+        for m_value in grid["M_values"]
+    }
+    metric = "ip" if grid["metric"] == "inner_product" else str(grid["metric"])
+    if (
+        not ef_values
+        or any(value <= 0 for value in ef_values)
+        or not build_grid
+        or any(a <= 0 or b <= 0 for a, b in build_grid)
+    ):
+        raise RuntimeError("invalid HNSW grid")
     attempts = discover_attempts(args)
     if not attempts:
         raise RuntimeError("no matching HNSW indexes found")
+    groups: dict[tuple[str, str, str, str], set[tuple[int, int]]] = {}
+    for attempt in attempts:
+        key = (
+            attempt.task_name,
+            attempt.model_slug,
+            attempt.revision,
+            attempt.run_id,
+        )
+        groups.setdefault(key, set()).add((attempt.ef_construction, attempt.m_value))
+        if (
+            attempt.metric != metric
+            or attempt.normalize != bool(grid["normalize_embeddings"])
+            or attempt.k != int(grid["top_k"])
+        ):
+            raise RuntimeError(f"index grid mismatch for {attempt.summary_path}")
+    if len(attempts) != sum(len(values) for values in groups.values()) or any(
+        values != build_grid for values in groups.values()
+    ):
+        raise RuntimeError("an embedding collection has an invalid index grid")
     failures: list[str] = []
     rows = 0
     if args.workers == 1:
@@ -263,7 +300,6 @@ def main() -> None:
                 str(args.output_root),
                 ef_values,
                 args.faiss_threads,
-                args.force,
             )
             rows += int(result["curve_rows"])
             print(
@@ -279,7 +315,6 @@ def main() -> None:
                     str(args.output_root),
                     ef_values,
                     args.faiss_threads,
-                    args.force,
                 ): attempt
                 for attempt in attempts
             }

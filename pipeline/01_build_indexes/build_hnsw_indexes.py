@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -17,8 +18,9 @@ from hnsw_cost.vector_io import (
     load_jsonl,
     load_vectors_and_rows,
     resolve_path,
-    verify_entry_files,
+    sha256_file,
     vector_shape,
+    verify_entry_files,
 )
 
 
@@ -52,7 +54,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", nargs="*")
     parser.add_argument("--tasks", nargs="*")
     parser.add_argument("--threads", type=int, default=1)
-    parser.add_argument("--skip-existing", action="store_true")
     args = parser.parse_args()
     if args.threads <= 0:
         raise SystemExit("--threads must be positive")
@@ -102,19 +103,30 @@ def load_collections(args: argparse.Namespace) -> list[VectorCollection]:
             for entry in load_jsonl(manifest)
             if str(entry.get("task_name", dataset)) == dataset
         ]
+        if not entries:
+            raise RuntimeError(f"no manifest entries for {dataset}/{model_slug}")
         for entry in entries:
             verify_entry_files(entry, manifest)
+        identities = {
+            (
+                str(entry.get("hf_split") or "default"),
+                str(entry.get("hf_subset") or "default"),
+            )
+            for entry in entries
+        }
+        if len(identities) != 1:
+            raise RuntimeError(f"mixed splits or subsets for {dataset}/{model_slug}")
         query_dir = manifest_dir(entries, "query", manifest)
         doc_dir = manifest_dir(entries, "document", manifest)
-        reference = entries[0]
+        split, subset = identities.pop()
         collections.append(
             VectorCollection(
                 model_slug=model_slug,
                 revision=str(pair["revision"]),
                 run_id=str(pair["run_id"]),
                 task_name=dataset,
-                split=str(reference.get("hf_split") or "default"),
-                subset=str(reference.get("hf_subset") or "default"),
+                split=split,
+                subset=subset,
                 doc_dir=doc_dir,
                 query_dir=query_dir,
                 num_docs=int(pair["num_docs"]),
@@ -125,6 +137,9 @@ def load_collections(args: argparse.Namespace) -> list[VectorCollection]:
         )
     if not collections:
         raise RuntimeError("no locked vector collections match the filters")
+    keys = [(row.task_name, row.model_slug) for row in collections]
+    if len(keys) != len(set(keys)):
+        raise RuntimeError("the vector lock contains duplicate dataset/model pairs")
     return collections
 
 
@@ -147,9 +162,11 @@ def output_dir(
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     """Write one formatted JSON object."""
-    path.write_text(
+    temporary = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+    temporary.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+    temporary.replace(path)
 
 
 def main() -> None:
@@ -187,7 +204,8 @@ def main() -> None:
             or top_k > len(docs)
         ):
             raise RuntimeError(
-                f"invalid vector shapes for {collection.task_name}/{collection.model_slug}"
+                "invalid vector shapes for "
+                f"{collection.task_name}/{collection.model_slug}"
             )
         if normalize:
             docs = l2_normalize(docs)
@@ -195,24 +213,6 @@ def main() -> None:
             target = output_dir(args.output_root, collection, ef_construction, m_value)
             summary_path = target / "summary.json"
             index_path = target / "docs_hnsw.faiss"
-            if args.skip_existing and summary_path.exists() and index_path.exists():
-                prior = json.loads(summary_path.read_text(encoding="utf-8"))
-                reusable = (
-                    prior.get("manifest_sha256") == collection.manifest_sha256
-                    and prior.get("metric") == metric
-                    and prior.get("normalize") == normalize
-                    and prior.get("k") == top_k
-                    and prior.get("ef_construction") == ef_construction
-                    and prior.get("M") == m_value
-                    and prior.get("num_docs") == collection.num_docs
-                    and prior.get("num_queries") == collection.num_queries
-                    and prior.get("embedding_dim") == collection.embedding_dim
-                )
-                if reusable:
-                    print(
-                        f"[skip] {collection.task_name} {collection.model_slug} efc={ef_construction} M={m_value}"
-                    )
-                    continue
             target.mkdir(parents=True, exist_ok=True)
             started = time.perf_counter()
             faiss_metric = (
@@ -222,7 +222,12 @@ def main() -> None:
             index.hnsw.efConstruction = ef_construction
             index.add(docs)
             build_seconds = time.perf_counter() - started
-            faiss.write_index(index, str(index_path))
+            temporary_index = index_path.with_suffix(
+                index_path.suffix + f".tmp.{os.getpid()}"
+            )
+            faiss.write_index(index, str(temporary_index))
+            temporary_index.replace(index_path)
+            index_sha256 = sha256_file(index_path)
             write_json(
                 summary_path,
                 {
@@ -245,10 +250,12 @@ def main() -> None:
                     "embedding_dim": int(docs.shape[1]),
                     "build_seconds": build_seconds,
                     "manifest_sha256": collection.manifest_sha256,
+                    "index_sha256": index_sha256,
                 },
             )
             print(
-                f"[ok] {collection.task_name} {collection.model_slug} efc={ef_construction} M={m_value}"
+                f"[ok] {collection.task_name} {collection.model_slug} "
+                f"efc={ef_construction} M={m_value}"
             )
 
 

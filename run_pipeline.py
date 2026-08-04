@@ -10,7 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPOSITORY = Path(__file__).resolve().parent
 
 
@@ -156,7 +155,6 @@ def main() -> None:
             "1",
             "--worker-id",
             "0",
-            "--force",
         ],
         environment,
     )

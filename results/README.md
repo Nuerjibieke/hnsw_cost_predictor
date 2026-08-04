@@ -7,4 +7,6 @@
 - `model_selection/`: embedding-model selection results.
 - `other_indexes/`: NSG and Vamana results.
 
-`run_pipeline.py`, `baseline/`, and `experiments/` generate these tables.
+`run_pipeline.py` generates the ablation and Kendall tables. `baseline/`
+contains the PGTuner QPP implementation. The other folders contain additional
+tables reported in the paper.

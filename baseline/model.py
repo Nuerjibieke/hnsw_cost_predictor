@@ -55,6 +55,12 @@ def transform_features(frame, features: list[str]) -> np.ndarray:
 
 def fit_scaler(train_values: np.ndarray, specification: dict) -> dict[str, np.ndarray]:
     """Fit the data-dependent feature statistics on training rows only."""
+    if (
+        train_values.ndim != 2
+        or not len(train_values)
+        or not np.isfinite(train_values).all()
+    ):
+        raise ValueError("training features must be a finite matrix")
     tail = train_values[:, 6:]
     tail_mean = np.mean(tail, axis=0)
     tail_std = np.std(tail, axis=0, ddof=1)
@@ -103,6 +109,8 @@ def train_predict(
     fold_index: int,
 ) -> np.ndarray:
     """Train one PGTuner fold and predict held-out configurations."""
+    if not len(train) or not len(test):
+        raise ValueError("baseline train and test sets must be non-empty")
     seed = int(specification["seed_base"]) + int(fold_index)
     seed_everything(seed, int(specification["torch_threads_per_worker"]))
     train_values = transform_features(train, features)
@@ -142,4 +150,7 @@ def train_predict(
     model.eval()
     with torch.no_grad():
         scaled = model(x_test).numpy().reshape(-1)
-    return inverse_target(scaled, specification)
+    predicted = inverse_target(scaled, specification)
+    if not np.isfinite(predicted).all():
+        raise RuntimeError("baseline produced non-finite predictions")
+    return predicted

@@ -1,60 +1,18 @@
-# Generate MTEB vectors
+# Generate vectors with MTEB
 
-MTEB loads text, applies prompts, and encodes vectors. Its source is not copied
-into this project. Run from the project root:
+[MTEB](https://github.com/embeddings-benchmark/mteb) is an external benchmark
+and is not included in this repository. Use its framework to load each
+retrieval task and encode its test queries and documents with the model
+revision listed in `configs/vector_manifests.json`.
 
-```bash
-git clone https://github.com/embeddings-benchmark/mteb.git ../mteb
-git -C ../mteb checkout 24365e91abc4021ab5286db039d5ae449b1ce190
+The paper vectors were exported with MTEB 2.11.6 at commit
+`24365e91abc4021ab5286db039d5ae449b1ce190`. The standard environment used
+PyTorch 2.9.0, Sentence Transformers 5.1.1, Transformers 4.44.2, Datasets
+4.8.4, and Accelerate 1.13.0. Qwen3-Embedding-8B, F2LLM-v2-8B, and
+GeoEmbedding used Sentence Transformers 3.3.1 and Transformers 4.51.3.
+LLM2Vec 0.2.3 used Sheared-LLaMA-1.3B at `a4b76938edbf571ea7d7d9904861cbdca08809b4`
+and its MNTP adapter at `eb4ee4c1f922be3c5961d26eb954d0755aa9b77c`.
 
-python3.10 -m venv .venv/mteb-standard
-.venv/mteb-standard/bin/python -m pip install -r vectors/requirements-standard.txt
-
-python3.10 -m venv .venv/mteb-compat
-.venv/mteb-compat/bin/python -m pip install -r vectors/requirements-compat.txt
-```
-
-Test one dataset/model pair:
-
-```bash
-python vectors/run_mteb_matrix.py \
-  --mteb-root ../mteb \
-  --vector-root artifacts/vectors \
-  --cache-root artifacts/mteb_cache \
-  --standard-python .venv/mteb-standard/bin/python \
-  --compat-python .venv/mteb-compat/bin/python \
-  --llm2vec-python .venv/mteb-standard/bin/python \
-  --tasks NFCorpus \
-  --models intfloat/e5-mistral-7b-instruct
-```
-
-Remove `--tasks` and `--models` to run all 77 pairs in `mteb_config.json`.
-
-After all pairs finish, create the pipeline lock:
-
-```bash
-python vectors/build_vector_lock.py \
-  --vector-root artifacts/vectors \
-  --output configs/vector_manifests.json
-```
-
-The scripts verify revisions, dimensions, pair counts, and file hashes. The
-LLM2Vec backbone and both adapters are pinned by commit.
-
-Generate QuoraRetrieval separately:
-
-```bash
-python vectors/run_mteb_matrix.py \
-  --mteb-root ../mteb \
-  --vector-root artifacts/quora_vectors \
-  --cache-root artifacts/mteb_cache \
-  --standard-python .venv/mteb-standard/bin/python \
-  --compat-python .venv/mteb-compat/bin/python \
-  --llm2vec-python .venv/mteb-standard/bin/python \
-  --tasks QuoraRetrieval
-
-python vectors/build_vector_lock.py \
-  --vector-root artifacts/quora_vectors \
-  --tasks QuoraRetrieval \
-  --output configs/quora_vectors.json
-```
+The downstream pipeline expects one NumPy array and one aligned JSON Lines file
+for queries and documents. See `example/data/vectors/` for the directory and
+manifest format. The pipeline verifies the manifest and file hashes before use.

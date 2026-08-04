@@ -36,7 +36,7 @@ def main() -> None:
             variant="b",
             nan_policy="omit",
         ).statistic
-        rows.append(dict(zip(group_columns, key), kendall_tau_b=tau))
+        rows.append(dict(zip(group_columns, key, strict=True), kendall_tau_b=tau))
     groups = pd.DataFrame(rows)
     splits = (
         groups.groupby(["fold_index", "dataset", "model_slug"], observed=True)

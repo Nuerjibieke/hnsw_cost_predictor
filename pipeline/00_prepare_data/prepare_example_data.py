@@ -11,8 +11,12 @@ from pathlib import Path
 
 import numpy as np
 
-from hnsw_cost.vector_io import load_jsonl, resolve_path, sha256_file
-
+from hnsw_cost.vector_io import (
+    load_jsonl,
+    resolve_path,
+    sha256_file,
+    verify_entry_files,
+)
 
 DEFAULT_DATASETS = ["NFCorpus", "SciFact"]
 DEFAULT_MODELS = [
@@ -89,9 +93,12 @@ def copy_entry(
     entry: dict, source_manifest: Path, target_run: Path, limit: int
 ) -> dict:
     """Copy the leading vectors and aligned rows for one manifest entry."""
+    verify_entry_files(entry, source_manifest)
     source_vectors = resolve_path(entry["vectors_path"], source_manifest)
     source_records = resolve_path(entry["records_path"], source_manifest)
     vectors = np.load(source_vectors, mmap_mode="r")
+    if vectors.ndim != 2:
+        raise RuntimeError(f"invalid vectors in {source_vectors}")
     take = min(limit, len(vectors))
     rows = read_rows(source_records, take)
     if len(rows) != take:
@@ -110,6 +117,8 @@ def copy_entry(
     record_path = target_dir / f"{stem}.jsonl"
     meta_path = target_dir / f"{stem}.meta.json"
     compact_vectors = np.asarray(vectors[:take])
+    if not np.isfinite(compact_vectors).all():
+        raise RuntimeError(f"non-finite vectors in {source_vectors}")
     np.save(vector_path, compact_vectors)
     write_rows(record_path, rows)
 
@@ -200,7 +209,9 @@ def main() -> None:
     """Create all selected compact vector exports and their lock file."""
     args = parse_args()
     args.source_root = args.source_root.expanduser().resolve()
+    args.source_lock = args.source_lock.expanduser().resolve()
     args.output_root = args.output_root.expanduser().resolve()
+    args.output_lock = args.output_lock.expanduser().resolve()
     if (
         args.source_root == args.output_root
         or args.source_root in args.output_root.parents

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from hnsw_cost.features import QUERY_FEATURES
-
+from hnsw_cost.vector_io import sha256_file
 
 SETTING_FEATURES = ["hnsw_ef_construction", "hnsw_M", "ef_search"]
 KEYS = ["dataset", "model_slug", "query_offset"]
@@ -60,12 +60,22 @@ def read_cost_labels(
         raise FileNotFoundError(f"no query_curve.jsonl.gz files under {labels_root}")
     parts: list[pd.DataFrame] = []
     for path in paths:
+        success_path = path.parent / "_SUCCESS"
+        if (
+            not success_path.exists()
+            or success_path.read_text(encoding="utf-8") != "ok\n"
+        ):
+            raise RuntimeError(f"incomplete cost measurement: {path}")
         meta = json.loads((path.parent / "meta.json").read_text(encoding="utf-8"))
         dataset = str(meta["task_name"])
         model_slug = str(meta["model_slug"])
         locked = locked_pairs.get((dataset, model_slug))
         if locked is None:
             continue
+        if str(meta["manifest_sha256"]) != str(locked["manifest_sha256"]):
+            raise RuntimeError(f"manifest identity mismatch for {dataset}/{model_slug}")
+        if str(meta["curve_sha256"]) != sha256_file(path):
+            raise RuntimeError(f"cost file hash mismatch: {path}")
         if str(meta["revision"]) != str(locked["revision"]) or str(
             meta["run_id"]
         ) != str(locked["run_id"]):
@@ -77,6 +87,8 @@ def read_cost_labels(
                 f"vector cardinality mismatch for {dataset}/{model_slug}"
             )
         frame = pd.read_json(path, lines=True, compression="gzip")
+        if len(frame) != int(meta["curve_rows"]):
+            raise RuntimeError(f"cost row count mismatch: {path}")
         frame = frame.rename(
             columns={
                 "efConstruction": "hnsw_ef_construction",
@@ -121,6 +133,30 @@ def read_cost_labels(
     duplicate_count = int(labels.duplicated(FULL_KEYS).sum())
     if duplicate_count:
         raise RuntimeError(f"duplicate measured label keys: {duplicate_count}")
+    numeric = labels[
+        [*SETTING_FEATURES, "distance_computations", "num_docs", "true_log_cost"]
+    ]
+    if (
+        not np.isfinite(numeric.to_numpy(float)).all()
+        or (labels["distance_computations"] <= 0).any()
+    ):
+        raise RuntimeError("measured labels contain invalid numeric values")
+    if labels.groupby(KEYS, observed=True).query_id.nunique().max() != 1:
+        raise RuntimeError("query identifiers vary across HNSW settings")
+    for (dataset, model_slug), locked in locked_pairs.items():
+        offsets = set(
+            labels.loc[
+                (labels.dataset == dataset) & (labels.model_slug == model_slug),
+                "query_offset",
+            ].astype(int)
+        )
+        if offsets and offsets != set(range(int(locked["num_queries"]))):
+            raise RuntimeError(f"query offsets mismatch for {dataset}/{model_slug}")
+    setting_counts = (
+        labels.groupby(KEYS, observed=True).size().astype(int).unique().tolist()
+    )
+    if len(setting_counts) != 1:
+        raise RuntimeError("queries do not share one complete HNSW setting grid")
     return labels
 
 
@@ -136,6 +172,10 @@ def read_query_features(features_root: Path, pairs: list[dict]) -> pd.DataFrame:
         frame = pd.read_parquet(path, columns=["query_offset", *QUERY_FEATURES])
         if len(frame) != int(pair["num_queries"]):
             raise RuntimeError(f"feature row count mismatch for {dataset}/{model_slug}")
+        if set(frame.query_offset.astype(int)) != set(range(int(pair["num_queries"]))):
+            raise RuntimeError(f"feature offsets mismatch for {dataset}/{model_slug}")
+        if np.isinf(frame[QUERY_FEATURES].to_numpy(float)).any():
+            raise RuntimeError(f"infinite query features for {dataset}/{model_slug}")
         frame.insert(0, "model_slug", model_slug)
         frame.insert(0, "dataset", dataset)
         parts.append(frame)
@@ -154,6 +194,11 @@ def main() -> None:
     labels = read_cost_labels(args.labels_root, locked_pairs)
     present_pairs = labels[["dataset", "model_slug"]].drop_duplicates()
     present_keys = set(map(tuple, present_pairs.to_numpy()))
+    expected_keys = set(locked_pairs)
+    if present_keys != expected_keys:
+        missing = sorted(expected_keys - present_keys)
+        extra = sorted(present_keys - expected_keys)
+        raise RuntimeError(f"label pair mismatch; missing={missing}, extra={extra}")
     selected_pairs = [
         row
         for row in pairs

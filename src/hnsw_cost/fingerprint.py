@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import Any
 
+
 def fingerprint(values: Any) -> str:
     """Hash a JSON-compatible value with stable key ordering."""
     encoded = json.dumps(

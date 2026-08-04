@@ -32,7 +32,7 @@ previous generated files.
 ## Code order
 
 ```text
-vectors/                         text -> query and document vectors
+vectors/                         MTEB vector-generation instructions
 pipeline/00_prepare_data/        full vectors -> optional compact example
 pipeline/01_build_indexes/       vectors -> HNSW indexes
 pipeline/02_measure_query_costs/ indexes -> distance counts
@@ -42,8 +42,8 @@ pipeline/05_train_and_evaluate/  training rows -> held-out predictions
 pipeline/06_build_result_tables/ predictions -> paper tables
 ```
 
-Shared code is in `src/hnsw_cost/`; PGTuner QPP is in `baseline/`; additional
-experiments are in `experiments/`; reported tables are in `results/`.
+Shared code is in `src/hnsw_cost/`; PGTuner QPP is in `baseline/`; reported
+tables are in `results/`.
 
 ## Run the 77-pair experiment
 
