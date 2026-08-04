@@ -1,13 +1,9 @@
 # Model inputs
 
-The model uses 20 inputs: four HNSW/corpus values and 16 query features. Vectors
-are L2-normalized, and cosine distance is `d(q,x)=1-q·x`. Original distances set
-the neighbor order. `epsilon=1e-8` only prevents division by zero and
-`log(0)`. Nearest neighbors use the same NumPy partial ordering as the paper
-experiments.
-
-The inputs do not include measured cost, recall, HNSW hops, graph edges, or
-search traces.
+The model uses four context inputs and 16 query features. Vectors are
+L2-normalized and use cosine distance `d(q,x)=1-q·x`. `epsilon=1e-8` prevents
+division by zero and `log(0)` without changing neighbor order. Exact distance
+ties are broken by document row order.
 
 ## HNSW and corpus
 
@@ -19,19 +15,13 @@ search traces.
 ## Distance growth
 
 - `lid20`: LID from the nearest 20 documents.
-- `adapt_lid_p005`, `adapt_lid_p01`, `adapt_lid_p02`, `adapt_lid_p05`: LID at
-  rank `min(N,max(20,ceil(pN)))`.
+- `adapt_lid_p005`, `adapt_lid_p01`, `adapt_lid_p02`, `adapt_lid_p05`: LID at rank `min(N,max(20,ceil(pN)))`.
 - `adapt_lid_profile_mean`, `adapt_lid_profile_max`,
   `adapt_lid_profile_slope`: mean, maximum, and slope of LID at
   `p={0.001,0.002,0.005,0.01,0.02,0.05}`.
-- `adapt_local_expansion_ratio_2r_p002`,
-  `adapt_local_expansion_ratio_2r_p01`: number of documents within twice the
-  selected neighbor distance, divided by the selected rank.
+- `adapt_local_expansion_ratio_2r_p002`, `adapt_local_expansion_ratio_2r_p01`: document count within twice the selected radius, divided by the selected rank.
 - `adapt_local_expansion_profile_mean`: mean expansion ratio at the six `p`
   values.
-
-The expansion denominator remains the selected rank when boundary distances
-are tied.
 
 ## Distance separation
 
@@ -41,13 +31,7 @@ are tied.
 
 ## Neighbor directions
 
-- `qdir_erank_k10`
-- `qdir_erank_k20`
-- `qdir_erank_k40`
-
-For each `k`, query-to-neighbor vectors are scaled to length one. The feature is
-the entropy effective rank of their Gram matrix. It is between 1 and `k` when
-the vectors have nonzero length.
+- `qdir_erank_k10`, `qdir_erank_k20`, `qdir_erank_k40`: entropy effective rank of the Gram matrix of normalized query-to-neighbor directions.
 
 Feature order is defined in `src/hnsw_cost/features.py`. Feature sets are listed
 in `configs/ablation_plan.json`.

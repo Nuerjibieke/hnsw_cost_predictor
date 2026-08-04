@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--faiss-threads", type=int, default=1)
+    parser.add_argument("--prepare-only", action="store_true")
     args = parser.parse_args()
     if args.workers <= 0 or args.faiss_threads <= 0:
         raise SystemExit("worker and thread counts must be positive")
@@ -137,6 +138,9 @@ def main() -> None:
         ],
         environment,
     )
+    if args.prepare_only:
+        print(f"\nPrepared training table: {training_table}")
+        return
     run(
         [
             python,

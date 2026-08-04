@@ -15,7 +15,7 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 import numpy as np
 import pandas as pd
 
-from .vector_io import l2_normalize, load_jsonl, resolve_path
+from .vector_io import l2_normalize, load_jsonl, resolve_path, verify_entry_files
 
 
 EPS = 1e-8
@@ -109,6 +109,8 @@ def load_embeddings(
     """Load and normalize the query and document embeddings for one pair."""
     manifest = choose_manifest(vector_root, dataset, model_slug, revision, run_id)
     query_entries, doc_entries = split_manifest(manifest, dataset)
+    for entry in [*query_entries, *doc_entries]:
+        verify_entry_files(entry, manifest)
     queries = l2_normalize(
         np.vstack(
             [
@@ -160,11 +162,21 @@ def partition_positions(num_docs: int) -> list[int]:
 
 
 def topk_offsets(distances: np.ndarray, k: int = TOP_K) -> np.ndarray:
-    """Select and order nearest vectors as in the paper experiments."""
-    offsets = np.argpartition(distances, kth=k - 1, axis=1)[:, :k]
-    selected_distances = np.take_along_axis(distances, offsets, axis=1)
-    order = np.argsort(selected_distances, axis=1)
-    return np.take_along_axis(offsets, order, axis=1).astype(np.int64, copy=False)
+    """Select nearest vectors with document offsets breaking exact ties."""
+    if distances.ndim != 2 or not 0 < k <= distances.shape[1]:
+        raise ValueError("invalid nearest-neighbor selection shape or k")
+    thresholds = np.partition(distances, kth=k - 1, axis=1)[:, k - 1]
+    result = np.empty((distances.shape[0], k), dtype=np.int64)
+    for row_index, (row, threshold) in enumerate(zip(distances, thresholds)):
+        strictly_closer = np.flatnonzero(row < threshold)
+        tied = np.flatnonzero(row == threshold)
+        needed = k - len(strictly_closer)
+        if needed < 0 or needed > len(tied):
+            raise RuntimeError("nearest-neighbor boundary is not finite")
+        selected = np.concatenate((strictly_closer, tied[:needed]))
+        order = np.lexsort((selected, row[selected]))
+        result[row_index] = selected[order]
+    return result
 
 
 def cosine_distances(queries: np.ndarray, docs: np.ndarray) -> np.ndarray:

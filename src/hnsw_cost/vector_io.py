@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Iterable
@@ -36,6 +37,30 @@ def resolve_path(path: str | Path, manifest: Path | None = None) -> Path:
             if relocated.exists():
                 return relocated
     raise FileNotFoundError(path)
+
+
+def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest of one file."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_entry_files(entry: dict[str, Any], manifest: Path) -> None:
+    """Verify vector and record hashes when the manifest provides them."""
+    checks = (
+        ("vectors_path", "vectors_sha256"),
+        ("records_path", "records_sha256"),
+    )
+    for path_key, hash_key in checks:
+        expected = entry.get(hash_key)
+        if expected is None:
+            continue
+        path = resolve_path(entry[path_key], manifest)
+        if sha256_file(path) != expected:
+            raise RuntimeError(f"file hash mismatch: {path}")
 
 
 def load_vectors_and_rows(vector_dir: Path) -> tuple[np.ndarray, list[dict[str, Any]]]:

@@ -1,0 +1,118 @@
+{
+  "mteb_commit": "24365e91abc4021ab5286db039d5ae449b1ce190",
+  "mteb_version": "2.11.6",
+  "datasets": [
+    "ArguAna",
+    "CQADupstackMathematicaRetrieval",
+    "CQADupstackPhysicsRetrieval",
+    "CQADupstackProgrammersRetrieval",
+    "CQADupstackStatsRetrieval",
+    "CQADupstackUnixRetrieval",
+    "FiQA2018",
+    "NFCorpus",
+    "SCIDOCS",
+    "SciFact",
+    "TRECCOVID"
+  ],
+  "external_datasets": [
+    "QuoraRetrieval"
+  ],
+  "dataset_sizes": {
+    "ArguAna": {"documents": 8674, "queries": 1406},
+    "CQADupstackMathematicaRetrieval": {"documents": 16705, "queries": 804},
+    "CQADupstackPhysicsRetrieval": {"documents": 38316, "queries": 1039},
+    "CQADupstackProgrammersRetrieval": {"documents": 32176, "queries": 876},
+    "CQADupstackStatsRetrieval": {"documents": 42269, "queries": 652},
+    "CQADupstackUnixRetrieval": {"documents": 47382, "queries": 1072},
+    "FiQA2018": {"documents": 57638, "queries": 648},
+    "NFCorpus": {"documents": 3633, "queries": 323},
+    "SCIDOCS": {"documents": 25657, "queries": 1000},
+    "SciFact": {"documents": 5183, "queries": 300},
+    "TRECCOVID": {"documents": 171332, "queries": 50},
+    "QuoraRetrieval": {"documents": 522931, "queries": 10000}
+  },
+  "models": [
+    {
+      "name": "Qwen/Qwen3-Embedding-8B",
+      "revision": "4e423935c619ae4df87b646a3ce949610c66241c",
+      "embedding_dim": 4096,
+      "runtime": "compat",
+      "batch_size": 4,
+      "batch_size_by_task": {
+        "CQADupstackMathematicaRetrieval": 1,
+        "CQADupstackPhysicsRetrieval": 1,
+        "CQADupstackProgrammersRetrieval": 1,
+        "CQADupstackStatsRetrieval": 1,
+        "CQADupstackUnixRetrieval": 1,
+        "FiQA2018": 1,
+        "SCIDOCS": 1,
+        "TRECCOVID": 2
+      }
+    },
+    {
+      "name": "Salesforce/SFR-Embedding-Mistral",
+      "revision": "938c560d1c236aa563b2dbdf084f28ab28bccb11",
+      "embedding_dim": 4096,
+      "runtime": "standard",
+      "batch_size": 8
+    },
+    {
+      "name": "codefuse-ai/F2LLM-v2-8B",
+      "revision": "5ac7d57351026337281e8e6a23e05cce16e79415",
+      "embedding_dim": 4096,
+      "runtime": "compat",
+      "attention_implementation": "sdpa"
+    },
+    {
+      "name": "intfloat/e5-mistral-7b-instruct",
+      "revision": "07163b72af1488142a360786df853f237b1a3ca1",
+      "embedding_dim": 4096,
+      "runtime": "standard",
+      "batch_size": 8
+    },
+    {
+      "name": "annamodels/LGAI-Embedding-Preview",
+      "revision": "5e0b2316acc8c2e2941ded6b9cb200b1cb313e65",
+      "embedding_dim": 4096,
+      "runtime": "standard",
+      "batch_size": 8,
+      "batch_size_by_task": {
+        "CQADupstackMathematicaRetrieval": 1,
+        "CQADupstackPhysicsRetrieval": 1,
+        "CQADupstackProgrammersRetrieval": 1,
+        "CQADupstackStatsRetrieval": 1,
+        "CQADupstackUnixRetrieval": 1,
+        "FiQA2018": 1,
+        "SCIDOCS": 1,
+        "TRECCOVID": 2
+      }
+    },
+    {
+      "name": "GeoGPT-Research-Project/GeoEmbedding",
+      "revision": "29803c28ea7ef6871194a8ebc85ad7bfe174928e",
+      "embedding_dim": 4096,
+      "runtime": "compat",
+      "batch_size": 16
+    },
+    {
+      "name": "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-supervised",
+      "revision": "a5943d406c6b016fef3f07906aac183cf1a0b47d",
+      "embedding_dim": 2048,
+      "runtime": "llm2vec",
+      "components": {
+        "backbone": {
+          "repo_id": "princeton-nlp/Sheared-LLaMA-1.3B",
+          "revision": "a4b76938edbf571ea7d7d9904861cbdca08809b4"
+        },
+        "mntp": {
+          "repo_id": "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+          "revision": "eb4ee4c1f922be3c5961d26eb954d0755aa9b77c"
+        },
+        "supervised": {
+          "repo_id": "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-supervised",
+          "revision": "a5943d406c6b016fef3f07906aac183cf1a0b47d"
+        }
+      }
+    }
+  ]
+}

@@ -6,11 +6,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
 
-from hnsw_cost.vector_io import load_jsonl, resolve_path
+from hnsw_cost.vector_io import load_jsonl, resolve_path, sha256_file
 
 
 DEFAULT_DATASETS = ["NFCorpus", "SciFact"]
@@ -120,6 +121,8 @@ def copy_entry(
         dtype=str(compact_vectors.dtype),
         vectors_path=str(vector_path.relative_to(target_run)),
         records_path=str(record_path.relative_to(target_run)),
+        vectors_sha256=sha256_file(vector_path),
+        records_sha256=sha256_file(record_path),
     )
     meta_path.write_text(
         json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -148,6 +151,8 @@ def build_pair(
         / pair["revision"]
         / pair["run_id"]
     )
+    if target_run.exists():
+        shutil.rmtree(target_run)
     target_run.mkdir(parents=True, exist_ok=True)
     output_entries = []
     remaining = {"query": max_queries, "document": max_docs}
@@ -194,6 +199,14 @@ def build_pair(
 def main() -> None:
     """Create all selected compact vector exports and their lock file."""
     args = parse_args()
+    args.source_root = args.source_root.expanduser().resolve()
+    args.output_root = args.output_root.expanduser().resolve()
+    if (
+        args.source_root == args.output_root
+        or args.source_root in args.output_root.parents
+        or args.output_root in args.source_root.parents
+    ):
+        raise RuntimeError("source and compact vector roots must be separate")
     if args.max_docs < 40:
         raise SystemExit("--max-docs must be at least 40 for the query features")
     if args.max_queries <= 0:

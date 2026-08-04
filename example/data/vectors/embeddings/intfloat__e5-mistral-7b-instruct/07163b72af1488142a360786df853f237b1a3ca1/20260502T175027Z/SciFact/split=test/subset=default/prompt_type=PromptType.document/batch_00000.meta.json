@@ -9,5 +9,7 @@
   "dtype": "float16",
   "record_count": 512,
   "vectors_path": "SciFact/split=test/subset=default/prompt_type=PromptType.document/batch_00000.npy",
-  "records_path": "SciFact/split=test/subset=default/prompt_type=PromptType.document/batch_00000.jsonl"
+  "records_path": "SciFact/split=test/subset=default/prompt_type=PromptType.document/batch_00000.jsonl",
+  "vectors_sha256": "81d117732237361663b26a90bb42102260d1882e7ba44a629da2e1775d2a885a",
+  "records_sha256": "b0ba0ffbc1324ec952458deda19644c475ad56e75d19fc63b3500c723e48d8c7"
 }

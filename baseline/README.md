@@ -1,13 +1,9 @@
 # PGTuner QPP baseline
 
-The baseline predicts one average HNSW search cost for each dataset, embedding
-model, and HNSW setting. It uses 14 inputs: three HNSW settings, document and
-query counts, vector dimension, global LID, three document-distance values, and
-four query-distance ratios.
+PGTuner QPP predicts one average cost for each dataset, model, and HNSW setting
+from 14 configuration and dataset-level inputs.
 
 ## Run the example
-
-After installing the main project, run:
 
 ```bash
 pip install -r baseline/requirements.txt
@@ -31,8 +27,12 @@ python baseline/run.py \
   --training-table artifacts/full_run/training_table.parquet \
   --pair-features artifacts/baseline/pair_features.csv \
   --output-root artifacts/baseline
+
+python pipeline/06_build_result_tables/build_prediction_summary.py \
+  --ablation artifacts/full_run/results/summary.csv \
+  --baseline artifacts/baseline/summary.csv \
+  --output artifacts/full_run/results/prediction_summary.csv
 ```
 
-Features use exact Euclidean distances. For each test pair, training excludes
-rows with the same dataset and rows with the same embedding model. Scaling
-statistics are computed from training rows only.
+Features use exact Euclidean distances. Each fold excludes its test dataset and
+model; scaling statistics use training rows only.

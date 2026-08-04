@@ -9,5 +9,7 @@
   "dtype": "float16",
   "record_count": 512,
   "vectors_path": "NFCorpus/split=test/subset=default/prompt_type=PromptType.document/batch_00000.npy",
-  "records_path": "NFCorpus/split=test/subset=default/prompt_type=PromptType.document/batch_00000.jsonl"
+  "records_path": "NFCorpus/split=test/subset=default/prompt_type=PromptType.document/batch_00000.jsonl",
+  "vectors_sha256": "d89a6b1996f73443ab767480592724798063652c1e0398ae8e55089955a5c3de",
+  "records_sha256": "cfcb72a4ee1331965e78e7f4ee09f5a3ff75fefc09c61fac29fa04ccccc9cca3"
 }

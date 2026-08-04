@@ -4,20 +4,20 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import math
+from importlib import metadata
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from hnsw_cost.fingerprint import fingerprint
+from hnsw_cost.vector_io import sha256_file
 from hnsw_cost.vector_io import load_jsonl, load_vectors_and_rows, resolve_path
 
 
-FEATURE_COLUMNS = [
-    "dataset",
-    "model_slug",
+FEATURE_VALUE_COLUMNS = [
     "SIZE",
     "q_SIZE",
     "DIM",
@@ -29,6 +29,13 @@ FEATURE_COLUMNS = [
     "q_K_MeanRatio",
     "q_K_MaxRatio",
     "q_K_StdRatio",
+]
+FEATURE_COLUMNS = [
+    "dataset",
+    "model_slug",
+    *FEATURE_VALUE_COLUMNS,
+    "manifest_sha256",
+    "feature_fingerprint",
 ]
 
 
@@ -73,7 +80,7 @@ def vector_directories(pair: dict, vector_root: Path) -> tuple[Path, Path]:
     manifest = vector_root / str(pair["manifest_relative_path"])
     if not manifest.exists():
         raise FileNotFoundError(manifest)
-    digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    digest = sha256_file(manifest)
     if digest != str(pair["manifest_sha256"]):
         raise RuntimeError(
             f"manifest hash mismatch for {pair['dataset']}/{pair['model_slug']}"
@@ -206,7 +213,11 @@ def global_lid(unique_documents: np.ndarray, batch_size: int, device: str) -> fl
 
 
 def compute_pair(
-    pair: dict, vector_root: Path, specification: dict, device: str
+    pair: dict,
+    vector_root: Path,
+    specification: dict,
+    device: str,
+    feature_fingerprint: str,
 ) -> dict:
     """Compute every PGTuner feature for one dataset/model pair."""
     document_dir, query_dir = vector_directories(pair, vector_root)
@@ -247,8 +258,12 @@ def compute_pair(
             int(specification["dr_batch_size"]),
             device,
         ),
+        "manifest_sha256": str(pair["manifest_sha256"]),
+        "feature_fingerprint": feature_fingerprint,
     }
-    if not np.isfinite([float(result[column]) for column in FEATURE_COLUMNS[2:]]).all():
+    if not np.isfinite(
+        [float(result[column]) for column in FEATURE_VALUE_COLUMNS]
+    ).all():
         raise RuntimeError("a baseline feature is non-finite")
     return result
 
@@ -257,6 +272,24 @@ def main() -> None:
     """Compute and save the selected locked-pair feature rows."""
     args = parse_args()
     plan = json.loads(args.config.read_text(encoding="utf-8"))["feature_extraction"]
+    device = select_device(args.device)
+    import torch
+
+    device_name = torch.cuda.get_device_name(device) if device.startswith("cuda") else "cpu"
+    feature_fingerprint = fingerprint(
+        {
+            "config_sha256": sha256_file(args.config),
+            "script_sha256": sha256_file(Path(__file__)),
+            "vector_io_sha256": sha256_file(
+                Path(__file__).resolve().parents[1] / "src/hnsw_cost/vector_io.py"
+            ),
+            "numpy_version": np.__version__,
+            "torch_version": metadata.version("torch"),
+            "cuda_version": torch.version.cuda,
+            "device": device,
+            "device_name": device_name,
+        }
+    )
     pairs = json.loads(args.lock.read_text(encoding="utf-8"))["pairs"]
     pairs = [
         pair
@@ -272,8 +305,7 @@ def main() -> None:
     ]
     if not pairs:
         raise RuntimeError("no locked pairs match the requested filters")
-    device = select_device(args.device)
-    if args.output.exists() and not args.force:
+    if args.output.exists():
         existing = pd.read_csv(args.output)
         if (
             list(existing.columns) != FEATURE_COLUMNS
@@ -282,14 +314,30 @@ def main() -> None:
             raise RuntimeError(f"invalid existing feature table: {args.output}")
     else:
         existing = pd.DataFrame(columns=FEATURE_COLUMNS)
-    completed = set(map(tuple, existing[["dataset", "model_slug"]].to_numpy()))
     rows = existing.to_dict("records")
     for pair in pairs:
         key = (str(pair["dataset"]), str(pair["model_slug"]))
-        if key in completed:
-            print(f"[skip] {key[0]} / {key[1]}")
-            continue
-        row = compute_pair(pair, args.vector_root, plan, device)
+        matches = [
+            row
+            for row in rows
+            if (str(row["dataset"]), str(row["model_slug"])) == key
+        ]
+        if matches and not args.force:
+            cached = matches[0]
+            if (
+                str(cached["manifest_sha256"]) == str(pair["manifest_sha256"])
+                and str(cached["feature_fingerprint"]) == feature_fingerprint
+            ):
+                print(f"[skip] {key[0]} / {key[1]}")
+                continue
+        rows = [
+            row
+            for row in rows
+            if (str(row["dataset"]), str(row["model_slug"])) != key
+        ]
+        row = compute_pair(
+            pair, args.vector_root, plan, device, feature_fingerprint
+        )
         rows.append(row)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         pd.DataFrame(rows, columns=FEATURE_COLUMNS).sort_values(

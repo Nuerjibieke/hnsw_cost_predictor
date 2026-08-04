@@ -17,7 +17,7 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 import numpy as np
 import pandas as pd
 
-from hnsw_cost.model import build_lgbm, joint_holdout_masks, metric, training_weights
+from hnsw_cost.model import build_lgbm, joint_holdout_masks, metric
 
 
 IDENTITY_COLUMNS = [
@@ -121,11 +121,7 @@ def run_worker(args: argparse.Namespace, plan: dict) -> None:
             y_train = data.iloc[train_index].true_log_cost.to_numpy(float)
             y_test = data.iloc[test_index].true_log_cost.to_numpy(float)
             model = build_lgbm(fold_index, len(features), int(plan["random_seed_base"]))
-            model.fit(
-                x_train,
-                y_train,
-                sample_weight=training_weights(data.iloc[train_index].model_slug),
-            )
+            model.fit(x_train, y_train)
             pred_log = np.asarray(model.predict(x_test), float)
 
             result = {

@@ -1,0 +1,29 @@
+--- a/apps/search_memory_index.cpp
++++ b/apps/search_memory_index.cpp
+@@ -129,6 +129,7 @@
+ 
+     std::vector<std::vector<uint32_t>> query_result_ids(Lvec.size());
+     std::vector<std::vector<float>> query_result_dists(Lvec.size());
++    std::vector<std::vector<uint32_t>> query_cmp_stats(Lvec.size());
+     std::vector<float> latency_stats(query_num, 0);
+     std::vector<uint32_t> cmp_stats;
+     if (not tags || filtered_search)
+@@ -210,6 +211,8 @@
+             latency_stats[i] = (float)(diff.count() * 1000000);
+         }
+         std::chrono::duration<double> diff = std::chrono::high_resolution_clock::now() - s;
++
++        query_cmp_stats[test_id] = cmp_stats;
+ 
+         double displayed_qps = query_num / diff.count();
+ 
+@@ -269,6 +272,9 @@
+         cur_result_path = cur_result_path_prefix + "_dists_float.bin";
+         diskann::save_bin<float>(cur_result_path, query_result_dists[test_id].data(), query_num, recall_at);
+ 
++        cur_result_path = cur_result_path_prefix + "_cmps_uint32.bin";
++        diskann::save_bin<uint32_t>(cur_result_path, query_cmp_stats[test_id].data(), query_num, 1);
++
+         test_id++;
+     }
+ 

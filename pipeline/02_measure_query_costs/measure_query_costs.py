@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import io
 import json
 import os
 import sys
@@ -186,27 +187,38 @@ def measure_attempt(
 
     target.mkdir(parents=True, exist_ok=True)
     row_count = 0
-    with gzip.open(curves_path, "wt", encoding="utf-8") as handle:
-        for ef_search in ef_values:
-            index.hnsw.efSearch = ef_search
-            for offset in range(len(queries)):
-                query = np.ascontiguousarray(
-                    queries[offset : offset + 1], dtype=np.float32
-                )
-                faiss.cvar.hnsw_stats.reset()
-                index.search(query, attempt.k)
-                row = {
-                    "query_offset": offset,
-                    "query_id": record_id(query_rows, offset),
-                    "M": attempt.m_value,
-                    "efConstruction": attempt.ef_construction,
-                    "efSearch": ef_search,
-                    "distance_computations": int(faiss.cvar.hnsw_stats.ndis),
-                }
-                handle.write(
-                    json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
-                )
-                row_count += 1
+    with curves_path.open("wb") as raw_handle:
+        with gzip.GzipFile(
+            filename="", mode="wb", fileobj=raw_handle, mtime=0
+        ) as compressed_handle:
+            with io.TextIOWrapper(compressed_handle, encoding="utf-8") as handle:
+                for ef_search in ef_values:
+                    index.hnsw.efSearch = ef_search
+                    for offset in range(len(queries)):
+                        query = np.ascontiguousarray(
+                            queries[offset : offset + 1], dtype=np.float32
+                        )
+                        faiss.cvar.hnsw_stats.reset()
+                        index.search(query, attempt.k)
+                        row = {
+                            "query_offset": offset,
+                            "query_id": record_id(query_rows, offset),
+                            "M": attempt.m_value,
+                            "efConstruction": attempt.ef_construction,
+                            "efSearch": ef_search,
+                            "distance_computations": int(
+                                faiss.cvar.hnsw_stats.ndis
+                            ),
+                        }
+                        handle.write(
+                            json.dumps(
+                                row,
+                                ensure_ascii=False,
+                                separators=(",", ":"),
+                            )
+                            + "\n"
+                        )
+                        row_count += 1
     if row_count != expected_rows:
         raise RuntimeError(f"measured {row_count} rows, expected {expected_rows}")
     meta = {
@@ -255,7 +267,8 @@ def main() -> None:
             )
             rows += int(result["curve_rows"])
             print(
-                f"[ok] {attempt.task_name} {attempt.model_slug} efc={attempt.ef_construction} M={attempt.m_value}"
+                f"[ok] {attempt.task_name} {attempt.model_slug} "
+                f"efc={attempt.ef_construction} M={attempt.m_value}"
             )
     else:
         with ProcessPoolExecutor(max_workers=args.workers) as executor:
@@ -276,7 +289,8 @@ def main() -> None:
                     result = future.result()
                     rows += int(result["curve_rows"])
                     print(
-                        f"[ok] {attempt.task_name} {attempt.model_slug} efc={attempt.ef_construction} M={attempt.m_value}"
+                        f"[ok] {attempt.task_name} {attempt.model_slug} "
+                        f"efc={attempt.ef_construction} M={attempt.m_value}"
                     )
                 except Exception as error:
                     failures.append(f"{attempt.summary_path}: {error!r}")

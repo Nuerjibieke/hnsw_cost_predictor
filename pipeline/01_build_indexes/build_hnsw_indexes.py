@@ -17,6 +17,7 @@ from hnsw_cost.vector_io import (
     load_jsonl,
     load_vectors_and_rows,
     resolve_path,
+    verify_entry_files,
     vector_shape,
 )
 
@@ -101,6 +102,8 @@ def load_collections(args: argparse.Namespace) -> list[VectorCollection]:
             for entry in load_jsonl(manifest)
             if str(entry.get("task_name", dataset)) == dataset
         ]
+        for entry in entries:
+            verify_entry_files(entry, manifest)
         query_dir = manifest_dir(entries, "query", manifest)
         doc_dir = manifest_dir(entries, "document", manifest)
         reference = entries[0]

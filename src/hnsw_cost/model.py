@@ -36,14 +36,6 @@ def build_lgbm(fold_index: int, n_features: int, seed_base: int):
     )
 
 
-def training_weights(model_values):
-    """Balance the training rows contributed by each embedding model."""
-    values = np.asarray(model_values).astype(str)
-    _, inverse, counts = np.unique(values, return_inverse=True, return_counts=True)
-    weights = 1.0 / counts[inverse]
-    return weights * len(weights) / weights.sum()
-
-
 def qerror(true_cost, pred_cost):
     """Compute multiplicative Q-error values."""
     true_cost = np.maximum(np.asarray(true_cost, float), 1.0)

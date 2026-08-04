@@ -97,10 +97,16 @@ def main() -> None:
         temporary = output.with_suffix(output.suffix + f".tmp.{os.getpid()}")
         frame.to_parquet(temporary, index=False, compression="zstd")
         temporary.replace(output)
-        nonfinite = {
-            name: int((~np.isfinite(frame[name].to_numpy(float))).sum())
+        missing = {
+            name: int(np.isnan(frame[name].to_numpy(float)).sum())
             for name in QUERY_FEATURES
         }
+        infinite = {
+            name: int(np.isinf(frame[name].to_numpy(float)).sum())
+            for name in QUERY_FEATURES
+        }
+        if any(infinite.values()):
+            raise RuntimeError(f"infinite feature values for {dataset}/{model_slug}")
         status = {
             "status": "pass",
             "dataset": dataset,
@@ -112,8 +118,9 @@ def main() -> None:
             "num_docs": len(docs),
             "embedding_dim": int(docs.shape[1]),
             "feature_count": len(QUERY_FEATURES),
-            "nonfinite_values": nonfinite,
-            "output": str(output),
+            "missing_values": missing,
+            "infinite_values": infinite,
+            "output": output.name,
         }
         atomic_json(status_path, status)
         statuses.append(status)
@@ -122,8 +129,12 @@ def main() -> None:
         "status": "pass",
         "pairs": len(statuses),
         "queries": sum(int(row["num_queries"]) for row in statuses),
-        "nonfinite_values": {
-            name: sum(int(row["nonfinite_values"][name]) for row in statuses)
+        "missing_values": {
+            name: sum(int(row["missing_values"][name]) for row in statuses)
+            for name in QUERY_FEATURES
+        },
+        "infinite_values": {
+            name: sum(int(row["infinite_values"][name]) for row in statuses)
             for name in QUERY_FEATURES
         },
     }
