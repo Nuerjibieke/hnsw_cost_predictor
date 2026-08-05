@@ -21,19 +21,20 @@ find `libgomp.so.1`.
 python run_pipeline.py
 ```
 
-This runs four dataset/model pairs and all 112 HNSW settings. Outputs:
+This runs the complete pipeline on the compact vectors included in the
+repository. Outputs:
 
 - `example/results/summary.csv`
 - `example/results/kendall.csv`
 
-The example results differ from the full paper results. Each run clears its
-previous generated files.
+The example is a code check, not a paper result. Each run clears its previous
+generated files.
 
 ## Code order
 
 ```text
 vectors/                         MTEB vector-generation instructions
-pipeline/00_prepare_data/        full vectors -> optional compact example
+pipeline/00_prepare_data/        exported vectors -> optional compact example
 pipeline/01_build_indexes/       vectors -> HNSW indexes
 pipeline/02_measure_query_costs/ indexes -> distance counts
 pipeline/03_extract_query_features/ vectors -> 16 query features
@@ -45,17 +46,26 @@ pipeline/06_build_result_tables/ predictions -> paper tables
 Shared code is in `src/hnsw_cost/`; PGTuner QPP is in `baseline/`; reported
 tables are in `results/`.
 
-## Run the 77-pair experiment
+## Run with exported vectors
 
-Generate vectors as described in `vectors/README.md`, then run:
+Generate vectors as described in `vectors/README.md`. To inspect one dataset
+without training, use a lock containing that dataset and run:
 
 ```bash
 python run_pipeline.py \
   --vector-root /path/to/vectors \
-  --lock configs/vector_manifests.json \
-  --output-root artifacts/full_run \
-  --results-root artifacts/full_run/results
+  --lock /path/to/vector_lock.json \
+  --output-root artifacts/run \
+  --results-root artifacts/run/results \
+  --prepare-only
 ```
+
+This builds indexes, measures query costs, extracts features, and creates the
+training table. Paper-style joint holdout training requires multiple datasets
+and models because each test fold excludes both its dataset and its model.
+
+Remove `--prepare-only` when the lock contains enough independent datasets and
+models for this split.
 
 The grid is defined in `configs/hnsw_grid.json`. FAISS uses one thread, and
 `hnsw_stats.ndis` is the target. Each test fold excludes its dataset and model

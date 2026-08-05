@@ -3,7 +3,11 @@
 [MTEB](https://github.com/embeddings-benchmark/mteb) is an external benchmark
 and is not included in this repository. Use its framework to load each
 retrieval task and encode its test queries and documents with the model
-revision listed in `configs/vector_manifests.json`.
+revision listed in the vector lock used for the run.
+
+For a small example, export the test queries and documents from one retrieval
+dataset, such as NFCorpus, with one model revision. This is sufficient for data
+preparation, index construction, cost measurement, and feature extraction.
 
 The paper vectors were exported with MTEB 2.11.6 at commit
 `24365e91abc4021ab5286db039d5ae449b1ce190`. The standard environment used

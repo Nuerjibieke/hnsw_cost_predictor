@@ -14,24 +14,24 @@ python baseline/run.py
 
 Outputs are written under `example/output/baseline/`.
 
-## Run all 77 pairs
+## Run with exported vectors
 
 ```bash
 python baseline/compute_features.py \
-  --vector-root /path/to/full/vector/root \
-  --lock configs/vector_manifests.json \
+  --vector-root /path/to/vectors \
+  --lock /path/to/vector_lock.json \
   --output artifacts/baseline/pair_features.csv \
   --device cuda
 
 python baseline/run.py \
-  --training-table artifacts/full_run/training_table.parquet \
+  --training-table artifacts/run/training_table.parquet \
   --pair-features artifacts/baseline/pair_features.csv \
   --output-root artifacts/baseline
 
 python pipeline/06_build_result_tables/build_prediction_summary.py \
-  --ablation artifacts/full_run/results/summary.csv \
+  --ablation artifacts/run/results/summary.csv \
   --baseline artifacts/baseline/summary.csv \
-  --output artifacts/full_run/results/prediction_summary.csv
+  --output artifacts/run/results/prediction_summary.csv
 ```
 
 Features use exact Euclidean distances. Each fold excludes its test dataset and
